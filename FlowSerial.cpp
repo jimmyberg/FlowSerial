@@ -30,7 +30,7 @@
 #include <termios.h> //For toptions and friends
 #include <sys/select.h> //For the pselect command
 
-#define _DEBUG_FLOW_SERIAL_
+//#define _DEBUG_FLOW_SERIAL_
 
 using namespace std;
 
