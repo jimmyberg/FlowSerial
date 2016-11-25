@@ -30,7 +30,7 @@
 #include <termios.h> //For toptions and friends
 #include <sys/select.h> //For the pselect command
 
-//#define _DEBUG_FLOW_SERIAL_
+#define _DEBUG_FLOW_SERIAL_
 
 using namespace std;
 
@@ -56,6 +56,9 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 	bool ret = false;
 	for (uint i = 0; i < arraySize; ++i){
 		uint8_t input = data[i];
+		#ifdef _DEBUG_FLOW_SERIAL_
+		cout << "next byte in line is number : " << +input << endl;
+		#endif
 		switch(flowSerialState){
 			case idle:
 				if(input == 0xAA){
@@ -65,8 +68,7 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 					checksum = 0xAA;
 					flowSerialState = startByteRecieved;
 				}
-				if(i >= arraySize - 1)
-					break;
+				break;
 			case startByteRecieved:
 				#ifdef _DEBUG_FLOW_SERIAL_
 				cout << "instructionRecieved" << endl;
@@ -75,8 +77,7 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 				flowSerialState = instructionRecieved;
 				checksum += input;
 				argumentBytesRecieved = 0;
-				if(i >= arraySize - 1)
-					break;
+				break;
 			case instructionRecieved:
 				switch(instruction){
 					case readInstruction:
@@ -112,19 +113,17 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 				#endif
 				checksum += input;
 				argumentBytesRecieved++;
-				if(i >= arraySize - 1 && flowSerialState != instructionRecieved)
-					break;
+				break;
 			case argumentsRecieved:
 				#ifdef _DEBUG_FLOW_SERIAL_
-				cout << "LSB" << endl;
+				cout << "MSB recieved" << endl;
 				#endif
 				checksumRecieved = (input << 8) & 0xFF00;
 				flowSerialState = msbChecksumRecieved;
-				if(i >= arraySize - 1)
-					break;
+				break;
 			case msbChecksumRecieved:
 				#ifdef _DEBUG_FLOW_SERIAL_
-				cout << "MSB" << endl;
+				cout << "LSB recieved" << endl;
 				#endif
 				checksumRecieved |= input & 0xFF;
 				flowSerialState = lsbChecksumRecieved;
@@ -241,6 +240,11 @@ void FlowSerial::UsbSocket::connnectToDevice(const char filePath[], uint baudRat
 			cerr << "Error: could not open device " << filePath << "." << endl;
 			return;
 		}
+		#ifdef _DEBUG_FLOW_SERIAL_
+		else{
+			cout << "succesfully connected to UsbSocket " << filePath << endl;
+		}
+		#endif
 		struct termios toptions;
 		// Get current options of "Terminal" (since it is a tty i think)
 		tcgetattr(fd, &toptions);
@@ -352,7 +356,7 @@ void FlowSerial::UsbSocket::closeDevice(){
 }
 
 bool FlowSerial::UsbSocket::update(){
-	if(fd > 0){
+	if(fd >= 0){
 		//Configure time to wait for response
 		const static struct timespec timeout = {0, 500000000};
 		//A set with fd's to check for timeout. Only one fd used here.
@@ -363,13 +367,6 @@ bool FlowSerial::UsbSocket::update(){
 		cout << "Serial is open." << endl;
 		#endif
 		uint8_t inputBuffer[256];
-		uint recievedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
-		#ifdef _DEBUG_FLOW_SERIAL_
-		cout << "recieved bytes = " << recievedBytes << endl;
-		#endif
-		uint arrayMax = sizeof(inputBuffer)/sizeof(*inputBuffer);
-		if(recievedBytes > arrayMax)
-			recievedBytes = arrayMax;
 		int pselectReturnValue = pselect(fd + 1, &readDiscriptors, NULL, NULL, &timeout, NULL);
 		if(pselectReturnValue == -1){
 			cerr << "Error: Arduino connection error. pselect function had an error" << endl;
@@ -382,7 +379,16 @@ bool FlowSerial::UsbSocket::update(){
 		else{
 			cerr << "Error: Arduino connection error. timeout reached." << endl;
 		}
+
+		//Actual reading done here
+		uint recievedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
 		serialPort.read(reinterpret_cast<char*>(inputBuffer), recievedBytes);
+		#ifdef _DEBUG_FLOW_SERIAL_
+		cout << "recieved bytes = " << recievedBytes << endl;
+		#endif
+		uint arrayMax = sizeof(inputBuffer)/sizeof(*inputBuffer);
+		if(recievedBytes > arrayMax)
+			recievedBytes = arrayMax;
 		return FlowSerial::BaseSocket::update(inputBuffer, recievedBytes);
 	}
 	#ifdef _DEBUG_FLOW_SERIAL_
