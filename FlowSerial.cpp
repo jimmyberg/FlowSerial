@@ -369,15 +369,15 @@ bool FlowSerial::UsbSocket::update(){
 		uint8_t inputBuffer[256];
 		int pselectReturnValue = pselect(fd + 1, &readDiscriptors, NULL, NULL, &timeout, NULL);
 		if(pselectReturnValue == -1){
-			cerr << "Error: Arduino connection error. pselect function had an error" << endl;
+			cerr << "Error: USB connection error. pselect function had an error" << endl;
 		}
 		#ifdef _DEBUG_FLOW_SERIAL_
 		else if(pselectReturnValue){
 			cout << "Debug: Recieved a message whitin timeout" << endl;
 		}
 		#endif
-		else{
-			cerr << "Error: Arduino connection error. timeout reached." << endl;
+		else if (pselectReturnValue == 0){
+			cerr << "Error: USB connection error. timeout reached." << endl;
 		}
 
 		//Actual reading done here
