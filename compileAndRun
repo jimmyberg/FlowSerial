@@ -1,4 +1,0 @@
-clear
-make && echo "
-Program output:
-" && ./prog
