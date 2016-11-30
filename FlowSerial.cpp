@@ -185,7 +185,7 @@ void FlowSerial::BaseSocket::sendReadRequest(uint8_t startAddress, size_t nBytes
 void FlowSerial::BaseSocket::writeToPeer(uint8_t startAddress, const uint8_t data[], size_t arraySize){
 	sendArray(startAddress, data, arraySize, writeInstruction);
 }
-int FlowSerial::BaseSocket::available(){
+size_t FlowSerial::BaseSocket::available(){
 	return inputBufferAvailable;
 }
 void FlowSerial::BaseSocket::getReturnedData(uint8_t dataReturn[]){
@@ -399,7 +399,7 @@ bool FlowSerial::UsbSocket::update(){
 
 void FlowSerial::UsbSocket::sendToInterface(const uint8_t data[], size_t arraySize){
 	#ifdef _DEBUG_FLOW_SERIAL_
-	for (int i = 0; i < arraySize; ++i)
+	for (size_t i = 0; i < arraySize; ++i)
 	{
 		cout << "Writting to FlowSerial peer:" << +data[i] << endl;
 	}

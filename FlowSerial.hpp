@@ -82,7 +82,7 @@ namespace FlowSerial{
 		 * @details Note that older data will be deleted when new data arrives.
 		 * @return Number of byte available in input buffer.
 		 */
-		int available();
+		size_t available();
 		/**
 		 * @brief Copies the input buffer into dataReturn.
 		 * @details It will fill up to \p FlowSertial::BaseSocket::inputAvailable bytes
