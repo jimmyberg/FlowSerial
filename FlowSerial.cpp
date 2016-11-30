@@ -188,6 +188,9 @@ void FlowSerial::BaseSocket::writeToPeer(uint8_t startAddress, const uint8_t dat
 size_t FlowSerial::BaseSocket::available(){
 	return inputBufferAvailable;
 }
+void FlowSerial::BaseSocket::clearReturnedData(){
+	inputBufferAvailable = 0;
+}
 void FlowSerial::BaseSocket::getReturnedData(uint8_t dataReturn[]){
 	for (int i = 0; i < inputBufferAvailable; ++i){
 		dataReturn[i] = inputBuffer[i];
@@ -239,7 +242,7 @@ void FlowSerial::UsbSocket::connectToDevice(const char filePath[], uint baudRate
 		fd = open(filePath, O_RDWR | O_NOCTTY);
 		if (fd < 0){
 			cerr << "Error: could not open device " << filePath << "." << endl;
-			return;
+			throw CouldNotOpenError();
 		}
 		#ifdef _DEBUG_FLOW_SERIAL_
 		else{
@@ -344,15 +347,16 @@ void FlowSerial::UsbSocket::connectToDevice(const char filePath[], uint baudRate
 		tcsetattr(fd, TCSANOW, &toptions);
 	}
 	else{
-		#ifdef _DEBUG_FLOW_SERIAL_
 		cerr << "Error: Trying opening " << filePath << " but fd >= 0 so it must be already open." << endl;
-		#endif
+		throw CouldNotOpenError();
 	}
 }
 
 void FlowSerial::UsbSocket::closeDevice(){
-	if(~close(fd)){
-		cerr << "Error: could not close the device." << endl;
+	if(fd >= 0){
+		if(~close(fd)){
+			cerr << "Error: could not close the device." << endl;
+		}
 	}
 }
 
@@ -371,6 +375,7 @@ bool FlowSerial::UsbSocket::update(){
 		int pselectReturnValue = pselect(fd + 1, &readDiscriptors, NULL, NULL, &timeout, NULL);
 		if(pselectReturnValue == -1){
 			cerr << "Error: USB connection error. pselect function had an error" << endl;
+			throw ConnectionError();
 		}
 		#ifdef _DEBUG_FLOW_SERIAL_
 		else if(pselectReturnValue){
@@ -379,6 +384,7 @@ bool FlowSerial::UsbSocket::update(){
 		#endif
 		else if (pselectReturnValue == 0){
 			cerr << "Error: USB connection error. timeout reached." << endl;
+			throw TimeoutError();
 		}
 
 		//Actual reading done here
@@ -393,8 +399,9 @@ bool FlowSerial::UsbSocket::update(){
 		return FlowSerial::BaseSocket::update(inputBuffer, recievedBytes);
 	}
 	#ifdef _DEBUG_FLOW_SERIAL_
-	cerr << "Error: Coudl not read from USB. File is closed. fd < 0" << endl;
+	cerr << "Error: Could not read from device/file. File is closed. fd < 0" << endl;
 	#endif
+	throw ReadError();
 	return false;
 }
 
@@ -407,6 +414,7 @@ void FlowSerial::UsbSocket::sendToInterface(const uint8_t data[], size_t arraySi
 	#endif
 	if(write(fd, data, arraySize) < 0){
 		cerr << "Error: could not write to device/file" << endl;
+		throw WriteError();
 	}
 }
 
@@ -417,8 +425,24 @@ bool FlowSerial::UsbSocket::is_open(){
 void FlowSerial::UsbSocket::readFromPeerAddress(uint8_t startAddress, uint8_t returnData[], size_t nBytes){
 	sendReadRequest(startAddress, nBytes);
 	// Wait for the data to be reached
+	int trials = 0;
 	while(available() < nBytes){
-		update();
+		try{
+			update();
+		}
+		catch (TimeoutError){
+			if(trials < 5){
+				//Indacates error
+				//Reset input data
+				clearReturnedData();
+				//Send another read request
+				sendReadRequest(startAddress, nBytes);
+				trials++;
+			}
+			else{
+				throw ReadError();
+			}
+		}
 	}
 	getReturnedData(returnData);
 }

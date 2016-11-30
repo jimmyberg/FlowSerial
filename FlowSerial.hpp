@@ -91,6 +91,10 @@ namespace FlowSerial{
 		 */
 		void getReturnedData(uint8_t dataReturn[]);
 		/**
+		 * @brief Sets input buffer index to zero. This way all input is cleared.
+		 */
+		void clearReturnedData();
+		/**
 		 * Own register which can be read and written to from other party.
 		 * It is up to the programmer how to use this.
 		 * Either activly send data to the other part or passivly store data for others to read when requested.
@@ -144,8 +148,38 @@ namespace FlowSerial{
 		bool is_open();
 	private:
 		int fd = -1;
-		void sendToInterface(const uint8_t data[], size_t arraySize);
+		virtual void sendToInterface(const uint8_t data[], size_t arraySize);
 		fstream serialPort;
+	};
+
+	class ConnectionError
+	{
+	public:
+		ConnectionError():
+			errorMessage("Error: connection error"){}
+		ConnectionError(string ierrorMessage):
+			errorMessage(ierrorMessage){}
+		string errorMessage;
+	};
+	class CouldNotOpenError: public ConnectionError
+	{
+	public:
+		CouldNotOpenError():ConnectionError("Error: could not open device"){}
+	};
+	class ReadError: public ConnectionError
+	{
+	public:
+		ReadError():ConnectionError("Error: could not read to device"){}
+	};
+	class WriteError: public ConnectionError
+	{
+	public:
+		WriteError():ConnectionError("Error: could not write to device"){}
+	};
+	class TimeoutError: public ConnectionError
+	{
+	public:
+		TimeoutError():ConnectionError("Error: an error occured not read to device"){}
 	};
 }
 #endif //_FLOWSERIAL_HPP_
