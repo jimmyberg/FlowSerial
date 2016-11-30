@@ -137,7 +137,7 @@ namespace FlowSerial{
 	public:
 		UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght);
 		~UsbSocket();
-		void connnectToDevice(const char filePath[], uint baudRate);
+		void connectToDevice(const char filePath[], uint baudRate);
 		void readFromPeerAddress(uint8_t startAddress, uint8_t returnData[], size_t nBytes);
 		void closeDevice();
 		bool update();

@@ -30,7 +30,7 @@
 #include <termios.h> //For toptions and friends
 #include <sys/select.h> //For the pselect command
 
-#define _DEBUG_FLOW_SERIAL_
+//#define _DEBUG_FLOW_SERIAL_
 
 using namespace std;
 
@@ -192,6 +192,7 @@ void FlowSerial::BaseSocket::getReturnedData(uint8_t dataReturn[]){
 	for (int i = 0; i < inputBufferAvailable; ++i){
 		dataReturn[i] = inputBuffer[i];
 	}
+	inputBufferAvailable = 0;
 }
 void FlowSerial::BaseSocket::returnData(const uint8_t data[], size_t arraySize){
 	sendArray(0, data, arraySize, returnRequestedDataInstruction);
@@ -233,7 +234,7 @@ FlowSerial::UsbSocket::~UsbSocket()
 	closeDevice();
 }
 
-void FlowSerial::UsbSocket::connnectToDevice(const char filePath[], uint baudRate){
+void FlowSerial::UsbSocket::connectToDevice(const char filePath[], uint baudRate){
 	if (fd < 0){
 		fd = open(filePath, O_RDWR | O_NOCTTY);
 		if (fd < 0){
