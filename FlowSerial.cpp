@@ -118,16 +118,16 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 				#ifdef _DEBUG_FLOW_SERIAL_
 				cout << "MSB recieved" << endl;
 				#endif
-				checksumRecieved = (input << 8) & 0xFF00;
-				flowSerialState = msbChecksumRecieved;
+				checksumRecieved = input & 0xFF;
+				flowSerialState = lsbChecksumRecieved;
 				break;
-			case msbChecksumRecieved:
+			case lsbChecksumRecieved:
 				#ifdef _DEBUG_FLOW_SERIAL_
 				cout << "LSB recieved" << endl;
 				#endif
-				checksumRecieved |= input & 0xFF;
-				flowSerialState = lsbChecksumRecieved;
-			case lsbChecksumRecieved:
+				checksumRecieved |= (input << 8) & 0xFF00;
+				flowSerialState = msbChecksumRecieved;
+			case msbChecksumRecieved:
 				if(checksum == checksumRecieved){
 					flowSerialState = checksumOk;
 					#ifdef _DEBUG_FLOW_SERIAL_
@@ -219,9 +219,9 @@ void FlowSerial::BaseSocket::sendArray(uint8_t startAddress, const uint8_t data[
 	for (uint i = 0; i < arraySize; ++i){
 		checksum += data[i];
 	}
-	cout << checksum << endl;
 	sendToInterface(data, arraySize);
-	sendToInterface(reinterpret_cast<const uint8_t*>(&checksum), 2);
+	sendToInterface(&reinterpret_cast<const uint8_t*>(&checksum)[1], 1);
+	sendToInterface(reinterpret_cast<const uint8_t*>(&checksum), 1);
 }
 
 FlowSerial::UsbSocket::UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght)
@@ -398,6 +398,12 @@ bool FlowSerial::UsbSocket::update(){
 }
 
 void FlowSerial::UsbSocket::sendToInterface(const uint8_t data[], size_t arraySize){
+	#ifdef _DEBUG_FLOW_SERIAL_
+	for (int i = 0; i < arraySize; ++i)
+	{
+		cout << "Writting to FlowSerial peer:" << +data[i] << endl;
+	}
+	#endif
 	if(write(fd, data, arraySize) < 0){
 		cerr << "Error: could not write to device/file" << endl;
 	}
