@@ -30,7 +30,7 @@
 #include <termios.h> //For toptions and friends
 #include <sys/select.h> //For the pselect command
 
-//#define _DEBUG_FLOW_SERIAL_
+#define _DEBUG_FLOW_SERIAL_
 
 using namespace std;
 
@@ -104,7 +104,7 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 							nBytes = input;
 						else{
 							flowSerialBuffer[argumentBytesRecieved-1] = input;
-							if(argumentBytesRecieved > nBytes)
+							if(argumentBytesRecieved >= nBytes)
 								flowSerialState = argumentsRecieved;
 						}
 				}
@@ -126,8 +126,6 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 				cout << "LSB recieved" << endl;
 				#endif
 				checksumRecieved |= (input << 8) & 0xFF00;
-				flowSerialState = msbChecksumRecieved;
-			case msbChecksumRecieved:
 				if(checksum == checksumRecieved){
 					flowSerialState = checksumOk;
 					#ifdef _DEBUG_FLOW_SERIAL_
@@ -181,8 +179,8 @@ bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize)
 	}
 	return ret;
 }
-void FlowSerial::BaseSocket::sendReadRequest(uint8_t startAddress, uint8_t nBytes){
-	sendArray(startAddress, NULL, 0, readInstruction);
+void FlowSerial::BaseSocket::sendReadRequest(uint8_t startAddress, size_t nBytes){
+	sendArray(startAddress, NULL, nBytes, readInstruction);
 }
 void FlowSerial::BaseSocket::writeToPeer(uint8_t startAddress, const uint8_t data[], size_t arraySize){
 	sendArray(startAddress, data, arraySize, writeInstruction);
@@ -216,10 +214,12 @@ void FlowSerial::BaseSocket::sendArray(uint8_t startAddress, const uint8_t data[
 	charOut = arraySize;
 	sendToInterface(&charOut, 1);
 	checksum += arraySize;
-	for (uint i = 0; i < arraySize; ++i){
-		checksum += data[i];
+	if(data != NULL){
+		for (uint i = 0; i < arraySize; ++i){
+			checksum += data[i];
+		}
+		sendToInterface(data, arraySize);
 	}
-	sendToInterface(data, arraySize);
 	sendToInterface(&reinterpret_cast<const uint8_t*>(&checksum)[1], 1);
 	sendToInterface(reinterpret_cast<const uint8_t*>(&checksum), 1);
 }
@@ -413,7 +413,7 @@ bool FlowSerial::UsbSocket::is_open(){
 	return fd > 0;
 }
 
-void FlowSerial::UsbSocket::readFromPeerAddress(uint8_t startAddress, uint8_t nBytes, uint8_t returnData[]){
+void FlowSerial::UsbSocket::readFromPeerAddress(uint8_t startAddress, uint8_t returnData[], size_t nBytes){
 	sendReadRequest(startAddress, nBytes);
 	// Wait for the data to be reached
 	while(available() < nBytes){

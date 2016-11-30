@@ -67,7 +67,7 @@ namespace FlowSerial{
 		 * @param startAddress Start address of the register you want to read. If single this is the register location you will get.
 		 * @param nBytes Request data from startAddress register up to nBytes.
 		 */
-		void sendReadRequest(uint8_t startAddress, uint8_t nBytes);
+		void sendReadRequest(uint8_t startAddress, size_t nBytes);
 		/**
 		 * @brief Write to the other FlowSerial party register
 		 * @details [long description]
@@ -138,7 +138,7 @@ namespace FlowSerial{
 		UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght);
 		~UsbSocket();
 		void connnectToDevice(const char filePath[], uint baudRate);
-		void readFromPeerAddress(uint8_t startAddress, uint8_t nBytes, uint8_t returnData[]);
+		void readFromPeerAddress(uint8_t startAddress, uint8_t returnData[], size_t nBytes);
 		void closeDevice();
 		bool update();
 		bool is_open();
