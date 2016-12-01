@@ -55,7 +55,6 @@ namespace FlowSerial{
 	public:
 		/**
 		 * @brief Contructor
-		 * @details [long description]
 		 * 
 		 * @param iserialPort Initialize the serialport to this device file.
 		 */
