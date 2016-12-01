@@ -354,7 +354,7 @@ void FlowSerial::UsbSocket::connectToDevice(const char filePath[], uint baudRate
 
 void FlowSerial::UsbSocket::closeDevice(){
 	if(fd >= 0){
-		if(~close(fd)){
+		if(close(fd) < 0){
 			cerr << "Error: could not close the device." << endl;
 		}
 	}
