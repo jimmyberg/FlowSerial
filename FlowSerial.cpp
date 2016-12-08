@@ -12,9 +12,6 @@
 /** \file	FlwoSerial.cpp
  * \author		Jimmy van den Berg at Flow Engineering
  * \date		22-march-2016
- * \copyright	All rights strictly preserved. Reproduction or issue to third
- *					parties is not permitted without written authority of
- * 					FAST FLOW ENGINEERING B.V.
  * \brief		A library for the pc to use the FlowSerial protocole.
  * \details 	FlowSerial was designed to send and recieve data ordendenly between devices.
  * 				It is peer based so communucation and behavior should be the same one both sides.
