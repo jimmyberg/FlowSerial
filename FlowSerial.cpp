@@ -20,8 +20,6 @@
 
 #include "FlowSerial.hpp"
 #include <iostream>
-#include <ctime>
-#include <cstdio>
 #include <unistd.h>
 #include <fcntl.h> //For the open parameter bits open(fd,"blabla", <this stuff>);
 #include <termios.h> //For toptions and friends
@@ -386,7 +384,6 @@ bool FlowSerial::UsbSocket::update(){
 
 		//Actual reading done here
 		uint recievedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
-		serialPort.read(reinterpret_cast<char*>(inputBuffer), recievedBytes);
 		#ifdef _DEBUG_FLOW_SERIAL_
 		cout << "recieved bytes = " << recievedBytes << endl;
 		#endif

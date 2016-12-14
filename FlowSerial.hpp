@@ -22,8 +22,6 @@
 #define _FLOWSERIAL_HPP_
 
 #include <string>
-#include <fstream>
-#include <semaphore.h>
 
 using namespace std;
 
@@ -119,9 +117,7 @@ namespace FlowSerial{
 	private:
 
 		const static uint inputBufferSize = 256;
-		bool debugEnabled = false;
-		uint8_t flowId = 0x00;
-		uint8_t inputBufferAvailable;
+		uint8_t inputBufferAvailable = 0;
 		uint8_t inputBuffer[inputBufferSize];
 	
 		FlowSerialState flowSerialState;
@@ -130,7 +126,6 @@ namespace FlowSerial{
 		void returnData(const uint8_t data[], size_t arraySize);
 		void returnData(uint8_t data);
 		void sendArray(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction);
-
 	};
 	
 	class UsbSocket : public BaseSocket{
@@ -145,7 +140,6 @@ namespace FlowSerial{
 	private:
 		int fd = -1;
 		virtual void sendToInterface(const uint8_t data[], size_t arraySize);
-		fstream serialPort;
 	};
 
 	class ConnectionError
