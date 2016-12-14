@@ -35,18 +35,6 @@ FlowSerial::BaseSocket::BaseSocket(uint8_t* iflowRegister, size_t iregisterLengh
 {}
 
 bool FlowSerial::BaseSocket::update(const uint8_t* const data, size_t arraySize){
-	//Own counting checksum
-	static uint16_t checksum;
-	//Checksum read from package
-	static uint16_t checksumRecieved;
-	//keeps track how many arguments were recieved
-	static uint argumentBytesRecieved;
-	//Remember what the start address was
-	static uint startAddress;
-	//How many bytes needs reading or writing. Recieved from package
-	static uint nBytes;
-	//Temporary store writing data into this buffer untill the checksum is read and checked
-	static uint8_t flowSerialBuffer[256];
 	//by default return false. Return true when a frame has succesfully handled
 	bool ret = false;
 	for (uint i = 0; i < arraySize; ++i){

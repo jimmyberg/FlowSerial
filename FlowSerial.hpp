@@ -119,6 +119,19 @@ namespace FlowSerial{
 		const static uint inputBufferSize = 256;
 		uint8_t inputBufferAvailable = 0;
 		uint8_t inputBuffer[inputBufferSize];
+		//For update function
+		//Own counting checksum
+		uint16_t checksum;
+		//Checksum read from package
+		uint16_t checksumRecieved;
+		//keeps track how many arguments were recieved
+		uint argumentBytesRecieved;
+		//Remember what the start address was
+		uint startAddress;
+		//How many bytes needs reading or writing. Recieved from package
+		uint nBytes;
+		//Temporary store writing data into this buffer untill the checksum is read and checked
+		uint8_t flowSerialBuffer[256];
 	
 		FlowSerialState flowSerialState;
 		Instruction instruction;
