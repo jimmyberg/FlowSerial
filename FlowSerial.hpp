@@ -155,8 +155,7 @@ namespace FlowSerial{
 		virtual void sendToInterface(const uint8_t data[], size_t arraySize);
 	};
 
-	class ConnectionError
-	{
+	class ConnectionError{
 	public:
 		ConnectionError():
 			errorMessage("Error: connection error"){}

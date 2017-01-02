@@ -189,26 +189,25 @@ void FlowSerial::BaseSocket::returnData(uint8_t data){
 
 void FlowSerial::BaseSocket::sendArray(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction){
 	uint16_t checksum = 0xAA + static_cast<char>(instruction);
-	uint8_t charOut = 0xAA;
-	sendToInterface(&charOut, 1);
-	charOut = instruction;
-	sendToInterface(&charOut, 1);
+	size_t outIndex = 0;
+	uint8_t charOut[1024];
+	charOut[outIndex++] = 0xAA;
+	charOut[outIndex++] = instruction;
 	if(instruction == writeInstruction || instruction == readInstruction){
-		charOut = startAddress;
-		sendToInterface(&charOut, 1);
+		charOut[outIndex++] = startAddress;
 		checksum += startAddress;
 	}
-	charOut = arraySize;
-	sendToInterface(&charOut, 1);
+	charOut[outIndex++] = arraySize;
 	checksum += arraySize;
 	if(data != NULL){
 		for (uint i = 0; i < arraySize; ++i){
+			charOut[outIndex++] = data[i];
 			checksum += data[i];
 		}
-		sendToInterface(data, arraySize);
 	}
-	sendToInterface(&reinterpret_cast<const uint8_t*>(&checksum)[1], 1);
-	sendToInterface(reinterpret_cast<const uint8_t*>(&checksum), 1);
+	charOut[outIndex++] = reinterpret_cast<const uint8_t*>(&checksum)[1];
+	charOut[outIndex++] = reinterpret_cast<const uint8_t*>(&checksum)[0];
+	sendToInterface(charOut, outIndex);
 }
 
 FlowSerial::UsbSocket::UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght)
@@ -340,6 +339,9 @@ void FlowSerial::UsbSocket::closeDevice(){
 		if(close(fd) < 0){
 			cerr << "Error: could not close the device." << endl;
 		}
+		else{
+			fd = -1;
+		}
 	}
 }
 
@@ -357,16 +359,16 @@ bool FlowSerial::UsbSocket::update(){
 		uint8_t inputBuffer[256];
 		int pselectReturnValue = pselect(fd + 1, &readDiscriptors, NULL, NULL, &timeout, NULL);
 		if(pselectReturnValue == -1){
-			cerr << "Error: USB connection error. pselect function had an error" << endl;
+			cerr << "Error: FlowSerial USB connection error. pselect function had an error" << endl;
 			throw ConnectionError();
 		}
 		#ifdef _DEBUG_FLOW_SERIAL_
 		else if(pselectReturnValue){
-			cout << "Debug: Recieved a message whitin timeout" << endl;
+			cout << "Debug: FlowSerial Recieved a message whitin timeout" << endl;
 		}
 		#endif
 		else if (pselectReturnValue == 0){
-			cerr << "Error: USB connection error. timeout reached." << endl;
+			cerr << "Error: FlowSerial USB connection error. timeout reached." << endl;
 			throw TimeoutError();
 		}
 
