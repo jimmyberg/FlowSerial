@@ -27,7 +27,7 @@ using namespace std;
 
 namespace FlowSerial{
 
-	enum FlowSerialState{
+	enum class State{
 		idle,
 		startByteRecieved,
 		instructionRecieved,
@@ -36,10 +36,10 @@ namespace FlowSerial{
 		msbChecksumRecieved,
 		checksumOk
 	};
-	enum Instruction{
-		readInstruction,
-		writeInstruction,
-		returnRequestedDataInstruction
+	enum class Instruction{
+		read,
+		write,
+		returnRequestedData
 	};
 	
 	/**
@@ -133,7 +133,7 @@ namespace FlowSerial{
 		//Temporary store writing data into this buffer untill the checksum is read and checked
 		uint8_t flowSerialBuffer[256];
 	
-		FlowSerialState flowSerialState;
+		State flowSerialState;
 		Instruction instruction;
 
 		void returnData(const uint8_t data[], size_t arraySize);
