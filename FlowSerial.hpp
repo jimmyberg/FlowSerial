@@ -15,7 +15,7 @@
  * \brief		A library for the pc to use the FlowSerial protocole.
  * \details 	FlowSerial was designed to send and recieve data ordendenly between devices.
  * 				It is peer based so communucation and behavior should be the same one both sides.
- * 				It was first designed and used for the AMD project in 2014.
+ * 				It was first designed and used for the Active Mass Damper project in 2014 by Flow Engineering.
  */
 
 #ifndef _FLOWSERIAL_HPP_
@@ -140,15 +140,61 @@ namespace FlowSerial{
 		void returnData(uint8_t data);
 		void sendArray(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction);
 	};
-	
+	/**
+	 * @brief      FlowSerial implementation build for USB devices
+	 * @details    It has handy connect funtion to connect to a linux USB device
+	 *             via /dev/ *
+	 */
 	class UsbSocket : public BaseSocket{
 	public:
+		/**
+		 * @brief      Constructor for this class.
+		 *
+		 * @param      iflowRegister    Pointer to array that is being used to
+		 *                              store recieved data.
+		 * @param      iregisterLenght  Length of array that was given.
+		 */
 		UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght);
+		/**
+		 * @brief      Destroys the object. Closing all open devices.
+		 */
 		~UsbSocket();
+		/**
+		 * @brief      Connects to a device. This is handy if someone wants to
+		 *             switch to another interfase.
+		 *
+		 * @param[in]  filePath  The file path
+		 * @param[in]  baudRate  The baud rate
+		 */
 		void connectToDevice(const char filePath[], uint baudRate);
+		/**
+		 * @brief      Reads from peer address. This has a timeout functionality
+		 *             of 500 ms. It will try three time before throwing an
+		 *             exception
+		 *
+		 * @param[in]  startAddress  The start address where to begin to read
+		 *                           from other peer
+		 * @param      returnData    Array will be filled with requested data.
+		 * @param[in]  nBytes        Number of elements that would be like to read
+		 */
 		void readFromPeerAddress(uint8_t startAddress, uint8_t returnData[], size_t nBytes);
+		/**
+		 * @brief      Closes the device.
+		 */
 		void closeDevice();
+		/**
+		 * @brief      Checks input stream for available messages. Will block if
+		 *             nothing is recieved. It is advised to use a thread for
+		 *             this.
+		 *
+		 * @return     true if a message is recieved.
+		 */
 		bool update();
+		/**
+		 * @brief      Determines if the device is open.
+		 *
+		 * @return     True if open, False otherwise.
+		 */
 		bool is_open();
 	private:
 		int fd = -1;
