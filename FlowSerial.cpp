@@ -147,7 +147,10 @@ namespace FlowSerial{
 							break;
 						case Instruction::returnRequestedData:
 							#ifdef _DEBUG_FLOW_SERIAL_
-							cout << "Got requested data" << endl;
+							cout << "Got requested data. " << nBytes << " bytes containing:" << endl;
+							for (uint i = 0; i < nBytes; ++i){
+								cout << +flowSerialBuffer[i] << endl;
+							}
 							#endif
 							inputBufferAvailable = nBytes;
 							for (uint i = 0; i < nBytes; ++i){
@@ -207,8 +210,8 @@ namespace FlowSerial{
 				checksum += data[i];
 			}
 		}
-		charOut[outIndex++] = reinterpret_cast<const uint8_t*>(&checksum)[1];
 		charOut[outIndex++] = reinterpret_cast<const uint8_t*>(&checksum)[0];
+		charOut[outIndex++] = reinterpret_cast<const uint8_t*>(&checksum)[1];
 		sendToInterface(charOut, outIndex);
 	}
 
@@ -392,16 +395,18 @@ namespace FlowSerial{
 	}
 
 	void UsbSocket::sendToInterface(const uint8_t data[], size_t arraySize){
-		#ifdef _DEBUG_FLOW_SERIAL_
-		for (size_t i = 0; i < arraySize; ++i)
-		{
-			cout << "Writting to FlowSerial peer:" << +data[i] << endl;
-		}
-		#endif
-		if(write(fd, data, arraySize) < 0){
+		ssize_t writeRet = write(fd, data, arraySize);
+		if(writeRet < 0){
 			cerr << "Error: could not write to device/file" << endl;
 			throw WriteError();
 		}
+		#ifdef _DEBUG_FLOW_SERIAL_
+		cout << "Written " << writeRet << " of " << arraySize << " bytes to interface" << endl;
+		for (size_t i = 0; i < arraySize; ++i)
+		{
+			cout << "byte[" << i << "] = " << +data[i] << endl;
+		}
+		#endif
 	}
 
 	bool UsbSocket::is_open(){
@@ -419,6 +424,10 @@ namespace FlowSerial{
 			catch (TimeoutError){
 				if(trials < 5){
 					//Indacates error
+					#ifdef _DEBUG_FLOW_SERIAL_
+					cout << "Recieved timeout. bytes recieved so far = " << available() << " of " << nBytes << "bytes" << '\n';
+					cout << "Sending another read request." << endl;
+					#endif
 					//Reset input data
 					clearReturnedData();
 					//Send another read request
