@@ -22,6 +22,9 @@
 #define _FLOWSERIAL_HPP_
 
 #include <string>
+#include <thread>
+#include <semaphore.h>
+#include <mutex>
 
 using namespace std;
 
@@ -132,8 +135,9 @@ namespace FlowSerial{
 		uint nBytes;
 		//Temporary store writing data into this buffer untill the checksum is read and checked
 		uint8_t flowSerialBuffer[256];
-	
-		State flowSerialState;
+		mutex mutexInbox;
+		
+		State flowSerialState = State::idle;
 		Instruction instruction;
 
 		void returnData(const uint8_t data[], size_t arraySize);
@@ -183,13 +187,29 @@ namespace FlowSerial{
 		 */
 		void closeDevice();
 		/**
-		 * @brief      Checks input stream for available messages. Will block if
-		 *             nothing is recieved. It is advised to use a thread for
-		 *             this.
+		 * @brief      Same as FlowSerial::UsbSocket::update(0);
 		 *
 		 * @return     true if a message is recieved.
 		 */
 		bool update();
+		/**
+		 * @brief      Checks input stream for available messages. Will block if
+		 *             nothing is recieved. It is advised to use a thread for
+		 *             this.
+		 *
+		 * @param[in]  timeoutMs  The timeout in milliseconds
+		 *
+		 * @return     True is message is recieved
+		 */
+		bool update(uint timeoutMs);
+		/**
+		 * @brief      Starts an update thread.
+		 */
+		void startUpdateThread();
+		/**
+		 * @brief      Stops an update thread if it's running.
+		 */
+		void stopUpdateThread();
 		/**
 		 * @brief      Determines if the device is open.
 		 *
@@ -198,6 +218,11 @@ namespace FlowSerial{
 		bool is_open();
 	private:
 		int fd = -1;
+		bool threadRunning = 0;
+		void updateThread(bool* threadRunning);
+		thread threadChild;
+		sem_t producer;
+		sem_t consumer;
 		virtual void sendToInterface(const uint8_t data[], size_t arraySize);
 	};
 

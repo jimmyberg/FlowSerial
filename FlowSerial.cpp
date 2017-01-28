@@ -101,14 +101,14 @@ namespace FlowSerial{
 					break;
 				case State::argumentsRecieved:
 					#ifdef _DEBUG_FLOW_SERIAL_
-					cout << "MSB recieved" << endl;
+					cout << "LSB recieved" << endl;
 					#endif
 					checksumRecieved = input & 0xFF;
 					flowSerialState = State::lsbChecksumRecieved;
 					break;
 				case State::lsbChecksumRecieved:
 					#ifdef _DEBUG_FLOW_SERIAL_
-					cout << "LSB recieved" << endl;
+					cout << "MSB recieved" << endl;
 					#endif
 					checksumRecieved |= (input << 8) & 0xFF00;
 					if(checksum == checksumRecieved){
@@ -152,11 +152,13 @@ namespace FlowSerial{
 								cout << +flowSerialBuffer[i] << endl;
 							}
 							#endif
+							mutexInbox.lock();
 							inputBufferAvailable = nBytes;
 							for (uint i = 0; i < nBytes; ++i){
 								inputBuffer[i] = flowSerialBuffer[i];
 							}
 							inputBuffer[nBytes] = 0;
+							mutexInbox.unlock();
 					}
 					flowSerialState = State::idle;
 					ret = true;
@@ -180,10 +182,12 @@ namespace FlowSerial{
 		inputBufferAvailable = 0;
 	}
 	void BaseSocket::getReturnedData(uint8_t dataReturn[]){
+		mutexInbox.lock();
 		for (int i = 0; i < inputBufferAvailable; ++i){
 			dataReturn[i] = inputBuffer[i];
 		}
 		inputBufferAvailable = 0;
+		mutexInbox.unlock();
 	}
 	void BaseSocket::returnData(const uint8_t data[], size_t arraySize){
 		sendArray(0, data, arraySize, Instruction::returnRequestedData);
@@ -222,6 +226,7 @@ namespace FlowSerial{
 	UsbSocket::~UsbSocket()
 	{
 		closeDevice();
+		stopUpdateThread();
 	}
 
 	void UsbSocket::connectToDevice(const char filePath[], uint baudRate){
@@ -351,36 +356,50 @@ namespace FlowSerial{
 	}
 
 	bool UsbSocket::update(){
-		if(fd >= 0){
-			//Configure time to wait for response
-			const static struct timespec timeout = {0, 500000000};
-			//A set with fd's to check for timeout. Only one fd used here.
-			fd_set readDiscriptors;
-			FD_ZERO(&readDiscriptors);
-			FD_SET(fd, &readDiscriptors);
-			#ifdef _DEBUG_FLOW_SERIAL_
-			cout << "Serial is open." << endl;
-			#endif
-			uint8_t inputBuffer[256];
-			int pselectReturnValue = pselect(fd + 1, &readDiscriptors, NULL, NULL, &timeout, NULL);
-			if(pselectReturnValue == -1){
-				cerr << "Error: FlowSerial USB connection error. pselect function had an error" << endl;
-				throw ConnectionError();
-			}
-			#ifdef _DEBUG_FLOW_SERIAL_
-			else if(pselectReturnValue){
-				cout << "Debug: FlowSerial Recieved a message whitin timeout" << endl;
-			}
-			#endif
-			else if (pselectReturnValue == 0){
-				cerr << "Error: FlowSerial USB connection error. timeout reached." << endl;
-				throw TimeoutError();
-			}
+		return update(0);
+	}
 
-			//Actual reading done here
-			uint recievedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
+	bool UsbSocket::update(uint timeoutMs){
+		if(fd >= 0){
+			if(timeoutMs != 0){
+				//Configure time to wait for response
+				const uint timeoutNs = (timeoutMs * 1000000) % 1000000000;
+				const uint timeoutS = timeoutMs / 1000;
+				#ifdef _DEBUG_FLOW_SERIAL_
+				cout << "timeout us = " << timeoutNs << endl;
+				cout << "timeout s = " << timeoutS << endl;
+				#endif
+				struct timespec timeout = {timeoutS, timeoutNs};
+				//A set with fd's to check for timeout. Only one fd used here.
+				fd_set readDiscriptors;
+				FD_ZERO(&readDiscriptors);
+				FD_SET(fd, &readDiscriptors);
+				#ifdef _DEBUG_FLOW_SERIAL_
+				cout << "Serial is open." << endl;
+				#endif
+				int pselectReturnValue = pselect(1, &readDiscriptors, NULL, NULL, &timeout, NULL);
+				if(pselectReturnValue == -1){
+					cerr << "Error: FlowSerial USB connection error. pselect function had an error" << endl;
+					throw ConnectionError();
+				}
+				#ifdef _DEBUG_FLOW_SERIAL_
+				else if(pselectReturnValue){
+					cout << "Debug: FlowSerial Recieved a message whitin timeout" << endl;
+				}
+				#endif
+				else if (pselectReturnValue == 0){
+					cerr << "Error: FlowSerial USB connection error. timeout reached." << endl;
+					throw TimeoutError();
+				}
+			}
+			uint8_t inputBuffer[256];
+			ssize_t recievedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
+			if(recievedBytes == -1){
+				throw ReadError();
+			}
 			#ifdef _DEBUG_FLOW_SERIAL_
-			cout << "recieved bytes = " << recievedBytes << endl;
+			if(recievedBytes > 0)
+				cout << "recieved bytes = " << recievedBytes << endl;
 			#endif
 			uint arrayMax = sizeof(inputBuffer)/sizeof(*inputBuffer);
 			if(recievedBytes > arrayMax)
@@ -394,6 +413,24 @@ namespace FlowSerial{
 		return false;
 	}
 
+	void UsbSocket::startUpdateThread(){
+		threadRunning = true;
+		sem_init(&producer, 0, 1);
+		sem_init(&consumer, 0, 0);
+		threadChild = thread(&UsbSocket::updateThread, this, &threadRunning);
+	}
+
+	void UsbSocket::stopUpdateThread(){
+		if(threadRunning == true){
+			threadRunning = false;
+			closeDevice();
+			sem_destroy(&producer);
+			sem_destroy(&consumer);
+			//Wait for thread to be stoped
+			threadChild.join();
+		}
+	}
+
 	void UsbSocket::sendToInterface(const uint8_t data[], size_t arraySize){
 		ssize_t writeRet = write(fd, data, arraySize);
 		if(writeRet < 0){
@@ -401,11 +438,11 @@ namespace FlowSerial{
 			throw WriteError();
 		}
 		#ifdef _DEBUG_FLOW_SERIAL_
-		cout << "Written " << writeRet << " of " << arraySize << " bytes to interface" << endl;
 		for (size_t i = 0; i < arraySize; ++i)
 		{
 			cout << "byte[" << i << "] = " << +data[i] << endl;
 		}
+		cout << "Written " << writeRet << " of " << arraySize << " bytes to interface" << endl;
 		#endif
 	}
 
@@ -418,28 +455,98 @@ namespace FlowSerial{
 		// Wait for the data to be reached
 		int trials = 0;
 		while(available() < nBytes){
-			try{
-				update();
-			}
-			catch (TimeoutError){
-				if(trials < 5){
-					//Indacates error
-					#ifdef _DEBUG_FLOW_SERIAL_
-					cout << "Recieved timeout. bytes recieved so far = " << available() << " of " << nBytes << "bytes" << '\n';
-					cout << "Sending another read request." << endl;
-					#endif
-					//Reset input data
-					clearReturnedData();
-					//Send another read request
-					sendReadRequest(startAddress, nBytes);
-					trials++;
+			if(threadRunning == true){
+				//Used to measure time for timeout
+				struct timespec ts;
+				while(available() < nBytes){
+					if(clock_gettime(CLOCK_REALTIME, &ts) == -1){
+						throw string("cold not get the time from clock_gettime");
+					}
+					ts.tv_sec += 1; //500ms
+					int retVal = sem_timedwait(&consumer, &ts);
+					if(retVal == -1){
+						int errnoVal = errno;
+						if(errnoVal == ETIMEDOUT){
+							if(trials < 5){
+								#ifdef _DEBUG_FLOW_SERIAL_
+								cout << "Recieved timeout. bytes recieved so far = " << available() << " of " << nBytes << "bytes" << '\n';
+								cout << "Sending another read request." << endl;
+								#endif
+								//Reset input data
+								clearReturnedData();
+								//Send another read request
+								sendReadRequest(startAddress, nBytes);
+								trials++;
+							}
+							else{
+								throw TimeoutError();
+							}
+						}
+						else{
+							throw string("Error at semaphore somehow");
+						}
+					}
+					else{
+						#ifdef _DEBUG_FLOW_SERIAL_
+						cout << "package is being handled. Posting producer." << endl;
+						#endif
+						sem_post(&producer);
+					}
 				}
-				else{
-					throw ReadError();
+			}
+			else{
+				try{
+					update(500);
+				}
+				catch (TimeoutError){
+					if(trials < 5){
+						//Indacates error
+						#ifdef _DEBUG_FLOW_SERIAL_
+						cout << "Recieved timeout. bytes recieved so far = " << available() << " of " << nBytes << "bytes" << '\n';
+						cout << "Sending another read request." << endl;
+						#endif
+						//Reset input data
+						clearReturnedData();
+						//Send another read request
+						sendReadRequest(startAddress, nBytes);
+						trials++;
+					}
+					else{
+						closeDevice();
+						throw ReadError();
+					}
 				}
 			}
 		}
 		getReturnedData(returnData);
 	}
-//end namespace FlowSerial
+	
+	void UsbSocket::updateThread(bool* threadRunning){
+		while(*threadRunning){
+			update();
+			if(available()){
+				int retVal = sem_trywait(&producer);
+				if(retVal == -1){
+					//semaphore unchaned since there was a error.
+					int errnoVal = errno;
+					if(errnoVal == EAGAIN){
+						//Sem was empty it seems
+						/*#ifdef _DEBUG_FLOW_SERIAL_
+						cout << "thread has made a package available. Semaphore full though." << endl;
+						#endif*/
+					}
+					else{
+						throw string("Some error with the sem_trywait() has occured. It was not empty that i know of.");
+					}
+				}
+				else{
+					//Semaphore has been lowered. Lifting the consumer semaphore
+					#ifdef _DEBUG_FLOW_SERIAL_
+					cout << "thread has made a package available. Posting semaphore." << endl;
+					#endif
+					retVal = sem_post(&consumer);
+				}
+			}
+		}
+	}
 }
