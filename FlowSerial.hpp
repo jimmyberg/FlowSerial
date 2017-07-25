@@ -32,11 +32,11 @@ namespace FlowSerial{
 
 	enum class State{
 		idle,
-		startByteRecieved,
-		instructionRecieved,
-		argumentsRecieved,
-		lsbChecksumRecieved,
-		msbChecksumRecieved,
+		startByteReceived,
+		instructionReceived,
+		argumentsReceived,
+		lsbChecksumReceived,
+		msbChecksumReceived,
 		checksumOk
 	};
 	enum class Instruction{
@@ -103,10 +103,10 @@ namespace FlowSerial{
 		const size_t registerLenght;
 	protected:
 		/**
-		 * @brief Update function. Input the recieved data here in chronological order.
+		 * @brief Update function. Input the received data here in chronological order.
 		 * @details The data that is been thrown in here will be handled as FlowSerial data. 
 		 * After calling this function the data that was passed can be erased/overwritten.
-		 * @return True when a full FlowSerial message has been recieved.
+		 * @return True when a full FlowSerial message has been received.
 		 */
 		bool update(const uint8_t data[], size_t arraySize);
 		/**
@@ -126,12 +126,12 @@ namespace FlowSerial{
 		//Own counting checksum
 		uint16_t checksum;
 		//Checksum read from package
-		uint16_t checksumRecieved;
-		//keeps track how many arguments were recieved
-		uint argumentBytesRecieved;
+		uint16_t checksumReceived;
+		//keeps track how many arguments were received
+		uint argumentBytesReceived;
 		//Remember what the start address was
 		uint startAddress;
-		//How many bytes needs reading or writing. Recieved from package
+		//How many bytes needs reading or writing. Received from package
 		uint nBytes;
 		//Temporary store writing data into this buffer untill the checksum is read and checked
 		uint8_t flowSerialBuffer[256];
@@ -155,7 +155,7 @@ namespace FlowSerial{
 		 * @brief      Constructor for this class.
 		 *
 		 * @param      iflowRegister    Pointer to array that is being used to
-		 *                              store recieved data.
+		 *                              store received data.
 		 * @param      iregisterLenght  Length of array that was given.
 		 */
 		UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght);
@@ -189,17 +189,17 @@ namespace FlowSerial{
 		/**
 		 * @brief      Same as FlowSerial::UsbSocket::update(0);
 		 *
-		 * @return     true if a message is recieved.
+		 * @return     true if a message is received.
 		 */
 		bool update();
 		/**
 		 * @brief      Checks input stream for available messages. Will block if
-		 *             nothing is recieved. It is advised to use a thread for
+		 *             nothing is received. It is advised to use a thread for
 		 *             this.
 		 *
 		 * @param[in]  timeoutMs  The timeout in milliseconds
 		 *
-		 * @return     True is message is recieved
+		 * @return     True is message is received
 		 */
 		bool update(uint timeoutMs);
 		/**

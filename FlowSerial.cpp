@@ -37,7 +37,8 @@ namespace FlowSerial{
 	{}
 
 	bool BaseSocket::update(const uint8_t* const data, size_t arraySize){
-		//by default return false. Return true when a frame has succesfully handled
+		// by default return false. Return true when a frame has been
+		// successfully handled
 		bool ret = false;
 		for (uint i = 0; i < arraySize; ++i){
 			uint8_t input = data[i];
@@ -48,70 +49,70 @@ namespace FlowSerial{
 				case State::idle:
 					if(input == 0xAA){
 						#ifdef _DEBUG_FLOW_SERIAL_
-						cout << "Start recieved" << endl;
+						cout << "Start received" << endl;
 						#endif
 						checksum = 0xAA;
-						flowSerialState = State::startByteRecieved;
+						flowSerialState = State::startByteReceived;
 					}
 					break;
-				case State::startByteRecieved:
+				case State::startByteReceived:
 					#ifdef _DEBUG_FLOW_SERIAL_
-					cout << "instructionRecieved" << endl;
+					cout << "instructionReceived" << endl;
 					#endif
 					instruction = static_cast<Instruction>(input);
-					flowSerialState = State::instructionRecieved;
+					flowSerialState = State::instructionReceived;
 					checksum += input;
-					argumentBytesRecieved = 0;
+					argumentBytesReceived = 0;
 					break;
-				case State::instructionRecieved:
+				case State::instructionReceived:
 					switch(instruction){
 						case Instruction::read:
-							if(argumentBytesRecieved == 0)
+							if(argumentBytesReceived == 0)
 								startAddress = input;
 							else{ //Pressumed 1
 								nBytes = input;
-								flowSerialState = State::argumentsRecieved;
+								flowSerialState = State::argumentsReceived;
 							}
 							break;
 						case Instruction::write:
-							if(argumentBytesRecieved == 0)
+							if(argumentBytesReceived == 0)
 								startAddress = input;
-							else if(argumentBytesRecieved == 1)
+							else if(argumentBytesReceived == 1)
 								nBytes = input;
 							else{
-								flowSerialBuffer[argumentBytesRecieved-2] = input;
-								if(argumentBytesRecieved > nBytes)
-									flowSerialState = State::argumentsRecieved;
+								flowSerialBuffer[argumentBytesReceived-2] = input;
+								if(argumentBytesReceived > nBytes)
+									flowSerialState = State::argumentsReceived;
 							}
 							break;
 						case Instruction::returnRequestedData:
-							if(argumentBytesRecieved == 0)
+							if(argumentBytesReceived == 0)
 								nBytes = input;
 							else{
-								flowSerialBuffer[argumentBytesRecieved-1] = input;
-								if(argumentBytesRecieved >= nBytes)
-									flowSerialState = State::argumentsRecieved;
+								flowSerialBuffer[argumentBytesReceived-1] = input;
+								if(argumentBytesReceived >= nBytes)
+									flowSerialState = State::argumentsReceived;
 							}
 					}
 					#ifdef _DEBUG_FLOW_SERIAL_
-					cout << "argumentBytesRecieved = " << argumentBytesRecieved << endl;
+					cout << "argumentBytesReceived = " << argumentBytesReceived << endl;
 					#endif
 					checksum += input;
-					argumentBytesRecieved++;
+					argumentBytesReceived++;
 					break;
-				case State::argumentsRecieved:
+				case State::argumentsReceived:
 					#ifdef _DEBUG_FLOW_SERIAL_
-					cout << "LSB recieved" << endl;
+					cout << "LSB received" << endl;
 					#endif
-					checksumRecieved = input & 0xFF;
-					flowSerialState = State::lsbChecksumRecieved;
+					checksumReceived = input & 0xFF;
+					flowSerialState = State::lsbChecksumReceived;
 					break;
-				case State::lsbChecksumRecieved:
+				case State::lsbChecksumReceived:
 					#ifdef _DEBUG_FLOW_SERIAL_
-					cout << "MSB recieved" << endl;
+					cout << "MSB received" << endl;
 					#endif
-					checksumRecieved |= (input << 8) & 0xFF00;
-					if(checksum == checksumRecieved){
+					checksumReceived |= (input << 8) & 0xFF00;
+					if(checksum == checksumReceived){
 						flowSerialState = State::checksumOk;
 						#ifdef _DEBUG_FLOW_SERIAL_
 						cout << "checksum ok" << endl;
@@ -124,7 +125,7 @@ namespace FlowSerial{
 						cout << "checksum not ok" << endl;
 						cout << 
 							"checksum:            " << checksum << '\n' <<
-							"!= checksumRecieved: " << checksumRecieved << endl;
+							"!= checksumReceived: " << checksumReceived << endl;
 						#endif
 						flowSerialState = State::idle;
 						break;
@@ -133,13 +134,13 @@ namespace FlowSerial{
 					switch(instruction){
 						case Instruction::read:
 							#ifdef _DEBUG_FLOW_SERIAL_
-							cout << "recieved Instruction::read request" << endl;
+							cout << "received Instruction::read request" << endl;
 							#endif
 							returnData(&FlowSerial::BaseSocket::flowRegister[startAddress], nBytes);
 							break;
 						case Instruction::write:
 							#ifdef _DEBUG_FLOW_SERIAL_
-							cout << "recieved Instruction::write request" << endl;
+							cout << "received Instruction::write request" << endl;
 							#endif
 							for (uint i = 0; i < nBytes; ++i){
 								FlowSerial::BaseSocket::flowRegister[i + startAddress] = flowSerialBuffer[i];
@@ -384,7 +385,7 @@ namespace FlowSerial{
 				}
 				#ifdef _DEBUG_FLOW_SERIAL_
 				else if(pselectReturnValue){
-					cout << "Debug: FlowSerial Recieved a message whitin timeout" << endl;
+					cout << "Debug: FlowSerial Received a message whitin timeout" << endl;
 				}
 				#endif
 				else if (pselectReturnValue == 0){
@@ -393,18 +394,18 @@ namespace FlowSerial{
 				}
 			}
 			uint8_t inputBuffer[256];
-			ssize_t recievedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
-			if(recievedBytes == -1){
+			ssize_t receivedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
+			if(receivedBytes == -1){
 				throw ReadError();
 			}
 			#ifdef _DEBUG_FLOW_SERIAL_
-			if(recievedBytes > 0)
-				cout << "recieved bytes = " << recievedBytes << endl;
+			if(receivedBytes > 0)
+				cout << "received bytes = " << receivedBytes << endl;
 			#endif
 			uint arrayMax = sizeof(inputBuffer)/sizeof(*inputBuffer);
-			if(recievedBytes > arrayMax)
-				recievedBytes = arrayMax;
-			return FlowSerial::BaseSocket::update(inputBuffer, recievedBytes);
+			if(receivedBytes > arrayMax)
+				receivedBytes = arrayMax;
+			return FlowSerial::BaseSocket::update(inputBuffer, receivedBytes);
 		}
 		#ifdef _DEBUG_FLOW_SERIAL_
 		cerr << "Error: Could not read from device/file. File is closed. fd < 0" << endl;
@@ -469,7 +470,7 @@ namespace FlowSerial{
 						if(errnoVal == ETIMEDOUT){
 							if(trials < 5){
 								#ifdef _DEBUG_FLOW_SERIAL_
-								cout << "Recieved timeout. bytes recieved so far = " << available() << " of " << nBytes << "bytes" << '\n';
+								cout << "Received timeout. bytes received so far = " << available() << " of " << nBytes << "bytes" << '\n';
 								cout << "Sending another read request." << endl;
 								#endif
 								//Reset input data
@@ -502,7 +503,7 @@ namespace FlowSerial{
 					if(trials < 5){
 						//Indacates error
 						#ifdef _DEBUG_FLOW_SERIAL_
-						cout << "Recieved timeout. bytes recieved so far = " << available() << " of " << nBytes << "bytes" << '\n';
+						cout << "Received timeout. bytes received so far = " << available() << " of " << nBytes << "bytes" << '\n';
 						cout << "Sending another read request." << endl;
 						#endif
 						//Reset input data
