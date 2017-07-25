@@ -1,0 +1,6 @@
+[submodule "CircularBuffer"]
+	path = CircularBuffer
+	url = jimmy@berg-electrotechnology.nl:/mnt/HDD0/git/jimmy-repo/CircularBuffer.git
+[submodule "LinearBuffer"]
+	path = LinearBuffer
+	url = jimmy@berg-electrotechnology.nl:/mnt/HDD0/git/jimmy-repo/LinearBuffer.git

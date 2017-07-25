@@ -12,9 +12,9 @@
 /** \file	FlwoSerial.hpp
  * \author		Jimmy van den Berg at Flow Engineering
  * \date		22-march-2016
- * \brief		A library for the pc to use the FlowSerial protocole.
- * \details 	FlowSerial was designed to send and recieve data ordendenly between devices.
- * 				It is peer based so communucation and behavior should be the same one both sides.
+ * \brief		A library for the PC to use the FlowSerial protocol.
+ * \details 	FlowSerial was designed to send and receive data orderly between devices.
+ * 				It is peer based so communication and behavior should be the same one both sides.
  * 				It was first designed and used for the Active Mass Damper project in 2014 by Flow Engineering.
  */
 
@@ -25,6 +25,7 @@
 #include <thread>
 #include <semaphore.h>
 #include <mutex>
+#include <stdexcept>
 
 using namespace std;
 
@@ -47,16 +48,17 @@ namespace FlowSerial{
 	
 	/**
 	 * @brief FlowSerial connection object.
-	 * @details Is the portal to communicate to the other device with the FlowSerial protocole
+	 * @details Is the portal to communicate to the other device with the FlowSerial protocol
 	 */
 	class BaseSocket{
 	public:
 		/**
-		 * @brief Contructor
-		 * 
-		 * @param iserialPort Initialize the serialport to this device file.
+		 * @brief      Constructor
+		 *
+		 * @param      iflowRegister    Pointer to the register.
+		 * @param[in]  iregisterLength  The length of the register
 		 */
-		BaseSocket(uint8_t* iflowRegister, size_t iregisterLenght);
+		BaseSocket(uint8_t* iflowRegister, size_t iregisterLength);
 		/**
 		 * @brief Request data from the other FlowSerial party register.
 		 * @detials When requesting more that one byte the data will be put in the input buffer lowest index first.
@@ -66,6 +68,17 @@ namespace FlowSerial{
 		 */
 		void sendReadRequest(uint8_t startAddress, size_t nBytes);
 		/**
+		 * @brief      Reads from peer address. This has a timeout functionality
+		 *             of 500 ms. It will try three time before throwing an
+		 *             exception
+		 *
+		 * @param[in]  startAddress  The start address where to begin to read
+		 *                           from other peer
+		 * @param      returnData    Array will be filled with requested data.
+		 * @param[in]  nBytes        Number of elements that would be like to read
+		 */
+		virtual void read(uint8_t startAddress, uint8_t returnData[], size_t size) = 0;
+		/**
 		 * @brief Write to the other FlowSerial party register
 		 * @details [long description]
 		 * 
@@ -73,7 +86,7 @@ namespace FlowSerial{
 		 * @param data Actual data in an array.
 		 * @param arraySize Specify the array size of the data array.
 		 */
-		void writeToPeer(uint8_t startAddress, const uint8_t* const data, size_t arraySize);
+		void writeToPeer(uint8_t startAddress, const uint8_t data[], size_t size);
 		/**
 		 * @brief Check available bytes in input buffer.
 		 * @details Note that older data will be deleted when new data arrives.
@@ -84,7 +97,7 @@ namespace FlowSerial{
 		 * @brief Copies the input buffer into dataReturn.
 		 * @details It will fill up to \p FlowSertial::BaseSocket::inputAvailable bytes
 		 * 
-		 * @param data Adrray where the data will be copied.
+		 * @param data Array where the data will be copied.
 		 */
 		void getReturnedData(uint8_t dataReturn[]);
 		/**
@@ -94,13 +107,13 @@ namespace FlowSerial{
 		/**
 		 * Own register which can be read and written to from other party.
 		 * It is up to the programmer how to use this.
-		 * Either activly send data to the other part or passivly store data for others to read when requested.
+		 * Either actively send data to the other part or passively store data for others to read when requested.
 		 */
 		uint8_t* const flowRegister;
 		/**
 		 * Defines the size of the array where FlowSerial::BaseSocket::flowRegister points to.
 		 */
-		const size_t registerLenght;
+		const size_t registerLength;
 	protected:
 		/**
 		 * @brief Update function. Input the received data here in chronological order.
@@ -113,13 +126,15 @@ namespace FlowSerial{
 		 * @brief Function that must be used to parse the information generated from this class to the interface.
 		 * @details The data must be on chronological order. So 0 is first out.
 		 * 
-		 * @param data Array this must be send to the interface handeling FlowSerial. 0 is first out.
-		 * @param arraySize Defenition for size of the array.
+		 * @param data Array this must be send to the interface handling FlowSerial. 0 is first out.
+		 * @param arraySize Definition for size of the array.
 		 */
 		virtual void sendToInterface(const uint8_t data[], size_t arraySize) = 0;
 	private:
-
-		const static uint inputBufferSize = 256;
+		void returnData(const uint8_t data[], size_t arraySize);
+		void returnData(uint8_t data);
+		void sendFlowMessage(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction);
+		static constexpr uint inputBufferSize = 256;
 		uint8_t inputBufferAvailable = 0;
 		uint8_t inputBuffer[inputBufferSize];
 		//For update function
@@ -133,20 +148,16 @@ namespace FlowSerial{
 		uint startAddress;
 		//How many bytes needs reading or writing. Received from package
 		uint nBytes;
-		//Temporary store writing data into this buffer untill the checksum is read and checked
+		//Temporary store writing data into this buffer until the checksum is read and checked
 		uint8_t flowSerialBuffer[256];
 		mutex mutexInbox;
 		
 		State flowSerialState = State::idle;
 		Instruction instruction;
-
-		void returnData(const uint8_t data[], size_t arraySize);
-		void returnData(uint8_t data);
-		void sendArray(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction);
 	};
 	/**
 	 * @brief      FlowSerial implementation build for USB devices
-	 * @details    It has handy connect funtion to connect to a linux USB device
+	 * @details    It has handy connect function to connect to a Linux USB device
 	 *             via /dev/ *
 	 */
 	class UsbSocket : public BaseSocket{
@@ -156,16 +167,16 @@ namespace FlowSerial{
 		 *
 		 * @param      iflowRegister    Pointer to array that is being used to
 		 *                              store received data.
-		 * @param      iregisterLenght  Length of array that was given.
+		 * @param      iregisterLength  Length of array that was given.
 		 */
-		UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght);
+		UsbSocket(uint8_t* iflowRegister, size_t iregisterLength);
 		/**
 		 * @brief      Destroys the object. Closing all open devices.
 		 */
 		~UsbSocket();
 		/**
 		 * @brief      Connects to a device. This is handy if someone wants to
-		 *             switch to another interfase.
+		 *             switch to another interface.
 		 *
 		 * @param[in]  filePath  The file path
 		 * @param[in]  baudRate  The baud rate
@@ -181,7 +192,7 @@ namespace FlowSerial{
 		 * @param      returnData    Array will be filled with requested data.
 		 * @param[in]  nBytes        Number of elements that would be like to read
 		 */
-		void readFromPeerAddress(uint8_t startAddress, uint8_t returnData[], size_t nBytes);
+		void read(uint8_t startAddress, uint8_t returnData[], size_t size);
 		/**
 		 * @brief      Closes the device.
 		 */
@@ -218,41 +229,38 @@ namespace FlowSerial{
 		bool is_open();
 	private:
 		int fd = -1;
-		bool threadRunning = 0;
-		void updateThread(bool* threadRunning);
+		bool threadRunning = true;
+		void updateThread();
 		thread threadChild;
 		sem_t producer;
 		sem_t consumer;
 		virtual void sendToInterface(const uint8_t data[], size_t arraySize);
 	};
 
-	class ConnectionError{
+	class ConnectionError: public runtime_error{
 	public:
-		ConnectionError():
-			errorMessage("Error: connection error"){}
-		ConnectionError(string ierrorMessage):
-			errorMessage(ierrorMessage){}
-		string errorMessage;
+		ConnectionError(string ierrorMessage = "connection error."):
+			runtime_error(ierrorMessage){}
 	};
 	class CouldNotOpenError: public ConnectionError
 	{
 	public:
-		CouldNotOpenError():ConnectionError("Error: could not open device"){}
+		CouldNotOpenError():ConnectionError("could not open device."){}
 	};
 	class ReadError: public ConnectionError
 	{
 	public:
-		ReadError():ConnectionError("Error: could not read to device"){}
+		ReadError():ConnectionError("could not read from device."){}
 	};
 	class WriteError: public ConnectionError
 	{
 	public:
-		WriteError():ConnectionError("Error: could not write to device"){}
+		WriteError():ConnectionError("could not write to device."){}
 	};
 	class TimeoutError: public ConnectionError
 	{
 	public:
-		TimeoutError():ConnectionError("Error: an error occured not read to device"){}
+		TimeoutError():ConnectionError("timeout reached waiting for reading of device."){}
 	};
 }
 #endif //_FLOWSERIAL_HPP_

@@ -12,9 +12,9 @@
 /** \file	FlwoSerial.cpp
  * \author		Jimmy van den Berg at Flow Engineering
  * \date		22-march-2016
- * \brief		A library for the pc to use the FlowSerial protocole.
- * \details 	FlowSerial was designed to send and recieve data ordendenly between devices.
- * 				It is peer based so communucation and behavior should be the same one both sides.
+ * \brief		A library for the PC to use the FlowSerial protocol.
+ * \details 	FlowSerial was designed to send and receive data orderly between devices.
+ * 				It is peer based so communication and behavior should be the same one both sides.
  * 				It was first designed and used for the AMD project in 2014.
  */
 
@@ -31,13 +31,13 @@ using namespace std;
 
 namespace FlowSerial{
 
-	BaseSocket::BaseSocket(uint8_t* iflowRegister, size_t iregisterLenght):
+	BaseSocket::BaseSocket(uint8_t* iflowRegister, size_t iregisterLength):
 		flowRegister(iflowRegister),
-		registerLenght(iregisterLenght)
+		registerLength(iregisterLength)
 	{}
 
 	bool BaseSocket::update(const uint8_t* const data, size_t arraySize){
-		// by default return false. Return true when a frame has been
+		// By default return false. Return true when a frame has been
 		// successfully handled
 		bool ret = false;
 		for (uint i = 0; i < arraySize; ++i){
@@ -69,7 +69,7 @@ namespace FlowSerial{
 						case Instruction::read:
 							if(argumentBytesReceived == 0)
 								startAddress = input;
-							else{ //Pressumed 1
+							else{ //Presumed 1
 								nBytes = input;
 								flowSerialState = State::argumentsReceived;
 							}
@@ -81,7 +81,7 @@ namespace FlowSerial{
 								nBytes = input;
 							else{
 								flowSerialBuffer[argumentBytesReceived-2] = input;
-								if(argumentBytesReceived > nBytes)
+								if(argumentBytesReceived-1 >= nBytes)
 									flowSerialState = State::argumentsReceived;
 							}
 							break;
@@ -115,14 +115,14 @@ namespace FlowSerial{
 					if(checksum == checksumReceived){
 						flowSerialState = State::checksumOk;
 						#ifdef _DEBUG_FLOW_SERIAL_
-						cout << "checksum ok" << endl;
+						cout << "checksum OK" << endl;
 						#endif
-						//No break. Continue to nex part.
+						//No break. Continue to next part.
 					}
 					else{
 						//Message failed. return to idle state.
 						#ifdef _DEBUG_FLOW_SERIAL_
-						cout << "checksum not ok" << endl;
+						cout << "checksum not OK" << endl;
 						cout << 
 							"checksum:            " << checksum << '\n' <<
 							"!= checksumReceived: " << checksumReceived << endl;
@@ -171,10 +171,10 @@ namespace FlowSerial{
 		return ret;
 	}
 	void BaseSocket::sendReadRequest(uint8_t startAddress, size_t nBytes){
-		sendArray(startAddress, NULL, nBytes, Instruction::read);
+		sendFlowMessage(startAddress, nullptr, nBytes, Instruction::read);
 	}
-	void BaseSocket::writeToPeer(uint8_t startAddress, const uint8_t data[], size_t arraySize){
-		sendArray(startAddress, data, arraySize, Instruction::write);
+	void BaseSocket::writeToPeer(uint8_t startAddress, const uint8_t data[], size_t size){
+		sendFlowMessage(startAddress, data, size, Instruction::write);
 	}
 	size_t BaseSocket::available(){
 		return inputBufferAvailable;
@@ -191,37 +191,37 @@ namespace FlowSerial{
 		mutexInbox.unlock();
 	}
 	void BaseSocket::returnData(const uint8_t data[], size_t arraySize){
-		sendArray(0, data, arraySize, Instruction::returnRequestedData);
+		sendFlowMessage(0, data, arraySize, Instruction::returnRequestedData);
 	}
 	void BaseSocket::returnData(uint8_t data){
-		sendArray(0, &data, 1, Instruction::returnRequestedData);
+		sendFlowMessage(0, &data, 1, Instruction::returnRequestedData);
 	}
 
-	void BaseSocket::sendArray(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction){
+	void BaseSocket::sendFlowMessage(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction){
 		uint16_t checksum = 0xAA + static_cast<char>(instruction);
 		size_t outIndex = 0;
 		uint8_t charOut[1024];
 		charOut[outIndex++] = 0xAA;
-		charOut[outIndex++] = static_cast<uint>(instruction);
+		charOut[outIndex++] = static_cast<uint8_t>(instruction);
 		if(instruction == Instruction::write || instruction == Instruction::read){
 			charOut[outIndex++] = startAddress;
 			checksum += startAddress;
 		}
-		charOut[outIndex++] = arraySize;
-		checksum += arraySize;
+		charOut[outIndex++] = static_cast<uint8_t>(arraySize);
+		checksum += static_cast<uint8_t>(arraySize);
 		if(data != NULL){
 			for (uint i = 0; i < arraySize; ++i){
 				charOut[outIndex++] = data[i];
 				checksum += data[i];
 			}
 		}
-		charOut[outIndex++] = reinterpret_cast<const uint8_t*>(&checksum)[0];
-		charOut[outIndex++] = reinterpret_cast<const uint8_t*>(&checksum)[1];
+		charOut[outIndex++] = checksum & 0xFF;
+		charOut[outIndex++] = checksum >> 8;
 		sendToInterface(charOut, outIndex);
 	}
 
-	UsbSocket::UsbSocket(uint8_t* iflowRegister, size_t iregisterLenght)
-		:BaseSocket(iflowRegister, iregisterLenght)
+	UsbSocket::UsbSocket(uint8_t* iflowRegister, size_t iregisterLength)
+		:BaseSocket(iflowRegister, iregisterLength)
 	{}
 
 	UsbSocket::~UsbSocket()
@@ -234,12 +234,11 @@ namespace FlowSerial{
 		if (fd < 0){
 			fd = open(filePath, O_RDWR | O_NOCTTY);
 			if (fd < 0){
-				cerr << "Error: could not open device " << filePath << "." << endl;
 				throw CouldNotOpenError();
 			}
 			#ifdef _DEBUG_FLOW_SERIAL_
 			else{
-				cout << "succesfully connected to UsbSocket " << filePath << endl;
+				cout << "successfully connected to UsbSocket " << filePath << endl;
 			}
 			#endif
 			struct termios toptions;
@@ -385,7 +384,7 @@ namespace FlowSerial{
 				}
 				#ifdef _DEBUG_FLOW_SERIAL_
 				else if(pselectReturnValue){
-					cout << "Debug: FlowSerial Received a message whitin timeout" << endl;
+					cout << "Debug: FlowSerial Received a message within timeout" << endl;
 				}
 				#endif
 				else if (pselectReturnValue == 0){
@@ -394,15 +393,15 @@ namespace FlowSerial{
 				}
 			}
 			uint8_t inputBuffer[256];
-			ssize_t receivedBytes = read(fd, inputBuffer, sizeof(inputBuffer) * sizeof(inputBuffer[0]) );
-			if(receivedBytes == -1){
+			ssize_t receivedBytes = ::read(fd, inputBuffer, sizeof(inputBuffer));
+			if(receivedBytes < 0){
 				throw ReadError();
 			}
 			#ifdef _DEBUG_FLOW_SERIAL_
 			if(receivedBytes > 0)
 				cout << "received bytes = " << receivedBytes << endl;
 			#endif
-			uint arrayMax = sizeof(inputBuffer)/sizeof(*inputBuffer);
+			uint arrayMax = sizeof(inputBuffer) / sizeof(*inputBuffer);
 			if(receivedBytes > arrayMax)
 				receivedBytes = arrayMax;
 			return FlowSerial::BaseSocket::update(inputBuffer, receivedBytes);
@@ -418,7 +417,7 @@ namespace FlowSerial{
 		threadRunning = true;
 		sem_init(&producer, 0, 1);
 		sem_init(&consumer, 0, 0);
-		threadChild = thread(&UsbSocket::updateThread, this, &threadRunning);
+		threadChild = thread(&UsbSocket::updateThread, this);
 	}
 
 	void UsbSocket::stopUpdateThread(){
@@ -427,13 +426,13 @@ namespace FlowSerial{
 			closeDevice();
 			sem_destroy(&producer);
 			sem_destroy(&consumer);
-			//Wait for thread to be stoped
+			//Wait for thread to be stopped
 			threadChild.join();
 		}
 	}
 
 	void UsbSocket::sendToInterface(const uint8_t data[], size_t arraySize){
-		ssize_t writeRet = write(fd, data, arraySize);
+		ssize_t writeRet = ::write(fd, data, arraySize);
 		if(writeRet < 0){
 			cerr << "Error: could not write to device/file" << endl;
 			throw WriteError();
@@ -451,15 +450,15 @@ namespace FlowSerial{
 		return fd > 0;
 	}
 
-	void UsbSocket::readFromPeerAddress(uint8_t startAddress, uint8_t returnData[], size_t nBytes){
-		sendReadRequest(startAddress, nBytes);
+	void UsbSocket::read(uint8_t startAddress, uint8_t returnData[], size_t size){
+		sendReadRequest(startAddress, size);
 		// Wait for the data to be reached
 		int trials = 0;
-		while(available() < nBytes){
+		while(available() < size){
 			if(threadRunning == true){
 				//Used to measure time for timeout
 				struct timespec ts;
-				while(available() < nBytes){
+				while(available() < size){
 					if(clock_gettime(CLOCK_REALTIME, &ts) == -1){
 						throw string("cold not get the time from clock_gettime");
 					}
@@ -470,13 +469,13 @@ namespace FlowSerial{
 						if(errnoVal == ETIMEDOUT){
 							if(trials < 5){
 								#ifdef _DEBUG_FLOW_SERIAL_
-								cout << "Received timeout. bytes received so far = " << available() << " of " << nBytes << "bytes" << '\n';
+								cout << "Received timeout. bytes received so far = " << available() << " of " << size << "bytes" << '\n';
 								cout << "Sending another read request." << endl;
 								#endif
 								//Reset input data
 								clearReturnedData();
 								//Send another read request
-								sendReadRequest(startAddress, nBytes);
+								sendReadRequest(startAddress, size);
 								trials++;
 							}
 							else{
@@ -501,15 +500,15 @@ namespace FlowSerial{
 				}
 				catch (TimeoutError){
 					if(trials < 5){
-						//Indacates error
+						//Indicates error
 						#ifdef _DEBUG_FLOW_SERIAL_
-						cout << "Received timeout. bytes received so far = " << available() << " of " << nBytes << "bytes" << '\n';
+						cout << "Received timeout. bytes received so far = " << available() << " of " << size << "bytes" << '\n';
 						cout << "Sending another read request." << endl;
 						#endif
 						//Reset input data
 						clearReturnedData();
 						//Send another read request
-						sendReadRequest(startAddress, nBytes);
+						sendReadRequest(startAddress, size);
 						trials++;
 					}
 					else{
@@ -522,8 +521,8 @@ namespace FlowSerial{
 		getReturnedData(returnData);
 	}
 	
-	void UsbSocket::updateThread(bool* threadRunning){
-		while(*threadRunning){
+	void UsbSocket::updateThread(){
+		while(threadRunning){
 			update();
 			if(available()){
 				int retVal = sem_trywait(&producer);
