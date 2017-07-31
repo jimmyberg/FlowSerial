@@ -7,27 +7,27 @@ This library can be used statically by adding the source files to your own proje
 
 Most things can be done by using the shell script ./library-control.sh that can be found in this repository. The following options are available in this script
 
-# Install dependencies only
+### Install dependencies only
 ```
 ./library-control.sh install-dep
 ```
 
-# Install as shared library
+### Install as shared library
 ```
 ./library-control.sh install
 ```
 
-# Remove shared library and dependencies (does not check if dependencies are user by something else)
+### Remove shared library and dependencies (does not check if dependencies are user by something else)
 ```
 ./library-control.sh remove-all
 ```
 
-# Remove shared library
+### Remove shared library
 ```
 ./library-control.sh remove
 ```
 
-# Remove dependencies
+### Remove dependencies
 ```
 ./library-control.sh remove-deb
 ```
@@ -35,7 +35,7 @@ To use this repository in another git repository
 ```
 git submodule add https://github.com/overlord1123/FlowSerial.git
 ```
-## Example
+# Example
 
 ```c++
 A example implementation will be made in the near future...
