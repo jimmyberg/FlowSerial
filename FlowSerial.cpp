@@ -19,9 +19,11 @@
  */
 
 #include "FlowSerial.hpp"
-#include <iostream>
 
 //#define _DEBUG_FLOW_SERIAL_
+#ifdef _DEBUG_FLOW_SERIAL_
+#include <iostream>
+#endif
 
 using namespace std;
 
@@ -36,7 +38,7 @@ namespace FlowSerial{
 		// By default return false. Return true when a frame has been
 		// successfully handled
 		bool ret = false;
-		for (uint i = 0; i < arraySize; ++i){
+		for (unsigned int i = 0; i < arraySize; ++i){
 			uint8_t input = data[i];
 			#ifdef _DEBUG_FLOW_SERIAL_
 			cout << "next byte in line is number : " << +input << endl;
@@ -78,7 +80,7 @@ namespace FlowSerial{
 							}
 							break;
 						case Instruction::returnRequestedData:
-							if(argumentBuffer.getStored() >= 2 && argumentBuffer.getStored() >= argumentBuffer[0] + 1u){
+							if(argumentBuffer.getStored() >= 1 && argumentBuffer.getStored() >= argumentBuffer[0] + 1u){
 								flowSerialState = State::argumentsReceived;
 							}
 							break;
@@ -101,7 +103,6 @@ namespace FlowSerial{
 						#ifdef _DEBUG_FLOW_SERIAL_
 						cout << "checksum OK" << endl;
 						#endif
-						//No break. Continue to next part.
 					}
 					else{
 						//Message failed. return to idle state.
@@ -115,9 +116,8 @@ namespace FlowSerial{
 						break;
 					}
 				case State::checksumOk:
-					unsigned int startIndex;
-					unsigned int endIndex;
-					uint8_t* copyPointer;
+					uint8_t* ArgCopyPointer;
+					uint8_t* flowRegPointer;
 					switch(instruction){
 						case Instruction::read:
 							#ifdef _DEBUG_FLOW_SERIAL_
@@ -129,17 +129,16 @@ namespace FlowSerial{
 							#ifdef _DEBUG_FLOW_SERIAL_
 							cout << "received Instruction::write request" << endl;
 							#endif
-							startIndex = argumentBuffer[0];
-							endIndex = argumentBuffer[0] + argumentBuffer[1];
-							copyPointer = &argumentBuffer[2];
-							for (uint i = startIndex; i < endIndex; ++i){
-								FlowSerial::BaseSocket::flowRegister[i] = copyPointer[i];
+							ArgCopyPointer = &argumentBuffer[2];
+							flowRegPointer = &flowRegister[argumentBuffer[0]];
+							for (unsigned int i = 0; i < argumentBuffer[1]; ++i){
+								flowRegPointer[i] = ArgCopyPointer[i];
 							}
 							break;
 						case Instruction::returnRequestedData:
 							#ifdef _DEBUG_FLOW_SERIAL_
 							cout << "Got requested data. " << +argumentBuffer[0] << " bytes containing:" << endl;
-							for (uint i = 0; i < argumentBuffer[0]; ++i){
+							for (unsigned int i = 0; i < argumentBuffer[0]; ++i){
 								cout << +argumentBuffer[i+1] << endl;
 							}
 							#endif
@@ -191,7 +190,7 @@ namespace FlowSerial{
 		charOut[outIndex++] = static_cast<uint8_t>(arraySize);
 		checksum += static_cast<uint8_t>(arraySize);
 		if(data != NULL){
-			for (uint i = 0; i < arraySize; ++i){
+			for (unsigned int i = 0; i < arraySize; ++i){
 				charOut[outIndex++] = data[i];
 				checksum += data[i];
 			}
