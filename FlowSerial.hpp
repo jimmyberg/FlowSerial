@@ -21,11 +21,9 @@
 #ifndef _FLOWSERIAL_HPP_
 #define _FLOWSERIAL_HPP_
 
-#include <string>
-#include <thread>
-#include <semaphore.h>
-#include <mutex>
-#include <stdexcept>
+#include <stdint.h>
+#include <CircularBuffer>
+#include <LinearBuffer>
 
 using namespace std;
 
@@ -47,8 +45,9 @@ namespace FlowSerial{
 	};
 	
 	/**
-	 * @brief FlowSerial connection object.
-	 * @details Is the portal to communicate to the other device with the FlowSerial protocol
+	 * @brief      Handles FlowSerial data communication.
+	 * @details    This object takes a array of bytes and allows FlowSerial
+	 *             peers to read and write in this register.
 	 */
 	class BaseSocket{
 	public:
@@ -60,207 +59,151 @@ namespace FlowSerial{
 		 */
 		BaseSocket(uint8_t* iflowRegister, size_t iregisterLength);
 		/**
-		 * @brief Request data from the other FlowSerial party register.
-		 * @detials When requesting more that one byte the data will be put in the input buffer lowest index first.
-		 * 
-		 * @param startAddress Start address of the register you want to read. If single this is the register location you will get.
-		 * @param nBytes Request data from startAddress register up to nBytes.
+		 * @brief      Request data from the other FlowSerial party register.
+		 *
+		 *             This is for low level use where you can poll
+		 *             BaseSocket::returnDataSize or even better (tip), instead of
+		 *             polling first do other stuff and than poll for incoming
+		 *             data. This is more efficient than using the read command.
+		 *
+		 * @note       This function does not grantee the data from the other
+		 *             peer to actually arrive nor does it a resend after a
+		 *             timeout. It just sends a request!
+		 *
+		 * @param      startAddress  Start address of the register you want to
+		 *                           read. If single this is the register
+		 *                           location you will get.
+		 * @param      nBytes        Request data from startAddress register up
+		 *                           to nBytes.
 		 */
 		void sendReadRequest(uint8_t startAddress, size_t nBytes);
 		/**
 		 * @brief      Reads from peer address. This has a timeout functionality
-		 *             of 500 ms. It will try three time before throwing an
-		 *             exception
+		 *             of 500 ms.
+		 *
+		 *             It will try five times with resending of the request
+		 *             before throwing an exception.
+		 *
+		 * @todo Implement this function as follows. Step 1: Call
+		 * BaseSocket::sendReadRequest to send a read request. Step 2: Put new
+		 * incoming data from the interface into the BaseSocket::handleData
+		 * function. Step 3: Check if BaseSocket::returnDataSize equals nBytes. Of
+		 * not goto step 2. If yes call BaseSocket::getReturnedData with
+		 * returnData and size as arguments. After this you are done. Make sure
+		 * you implement some sort of timeout when waiting for
+		 * BaseSocket::returnDataSize. After an timeout goto step 1.
 		 *
 		 * @param[in]  startAddress  The start address where to begin to read
 		 *                           from other peer
-		 * @param      returnData    Array will be filled with requested data.
-		 * @param[in]  nBytes        Number of elements that would be like to read
+		 * @param      returnData    Array that will be filled with requested
+		 *                           data.
+		 * @param[in]  size          Desired number of data starting from start
+		 *                           address. Must be smaller than the size of
+		 *                           returnData.
 		 */
 		virtual void read(uint8_t startAddress, uint8_t returnData[], size_t size) = 0;
 		/**
-		 * @brief Write to the other FlowSerial party register
-		 * @details [long description]
-		 * 
-		 * @param startAddress Startadrres you want to fill.
-		 * @param data Actual data in an array.
-		 * @param arraySize Specify the array size of the data array.
+		 * @brief      Write to the other FlowSerial party register.
+		 *
+		 * @note       This function does not guarantee nor check an actual
+		 *             write. It only sends a write appropriate request.
+		 *
+		 * @param      startAddress  Startadrres you want to fill.
+		 * @param      data          Actual data in an array.
+		 * @param[in]  size          The size
+		 * @param      arraySize  Specify the array size of the data array.
 		 */
-		void writeToPeer(uint8_t startAddress, const uint8_t data[], size_t size);
+		void write(uint8_t startAddress, const uint8_t data[], size_t size);
 		/**
-		 * @brief Check available bytes in input buffer.
-		 * @details Note that older data will be deleted when new data arrives.
-		 * @return Number of byte available in input buffer.
+		 * @brief      Check available bytes in the returned data buffer.
+		 *
+		 * @note       When receiving multiple returns, the data will be
+		 *             appended to the buffer FIFO style.
+		 *
+		 * @return     Number of byte available in input buffer.
 		 */
-		size_t available();
+		size_t returnDataSize();
 		/**
-		 * @brief Copies the input buffer into dataReturn.
-		 * @details It will fill up to \p FlowSertial::BaseSocket::inputAvailable bytes
-		 * 
-		 * @param data Array where the data will be copied.
+		 * @brief      Copies the input buffer into dataReturn up to size bytes.
+		 * @note       When receiving multiple returns, the data will be
+		 *             appended to the buffer FIFO style.
+		 *
+		 * @param      dataReturn  The data that has been returned from read
+		 *                         request
+		 * @param[in]  size        Size of dataReturn. It will fetch up to this
+		 *                         number. (tip) May also be smaller than the
+		 *                         actual size of dataReturn when a certain
+		 *                         amount is required.
+		 *
+		 * @return     Size of actual data copied into dataReturn. A number
+		 *             smaller than size indicates the buffer being empty.
 		 */
-		void getReturnedData(uint8_t dataReturn[]);
+		size_t getReturnedData(uint8_t dataReturn[], size_t size);
 		/**
-		 * @brief Sets input buffer index to zero. This way all input is cleared.
+		 * @brief      Clears all returned data in buffer. I.e.
+		 *             BaseSocket::returnDataSize will return 0;
 		 */
 		void clearReturnedData();
 		/**
 		 * Own register which can be read and written to from other party.
-		 * It is up to the programmer how to use this.
-		 * Either actively send data to the other part or passively store data for others to read when requested.
+		 *
+		 * It is up to the programmer what kind of data it actually contains.
+		 * This array can be read and written into by the other party and vise
+		 * versa.
 		 */
 		uint8_t* const flowRegister;
 		/**
-		 * Defines the size of the array where FlowSerial::BaseSocket::flowRegister points to.
+		 * Defines the size of the array where
+		 * FlowSerial::BaseSocket::flowRegister points to.
 		 */
 		const size_t registerLength;
 	protected:
 		/**
-		 * @brief Update function. Input the received data here in chronological order.
-		 * @details The data that is been thrown in here will be handled as FlowSerial data. 
-		 * After calling this function the data that was passed can be erased/overwritten.
-		 * @return True when a full FlowSerial message has been received.
+		 * @brief      Update function. Input the received data here in
+		 *             chronological order.
+		 * @details    The data that is been thrown in here will be handled as
+		 *             FlowSerial data. After calling this function the data
+		 *             that was passed can be erased/overwritten.
+		 *
+		 * @todo When receiving data then this function has to be called by the
+		 * derived class on order for this class to be useful.
+		 *
+		 * @param[in]  data       The data
+		 * @param[in]  arraySize  The array size
+		 *
+		 * @return     True when a full FlowSerial message has been received.
 		 */
-		bool update(const uint8_t data[], size_t arraySize);
+		bool handleData(const uint8_t data[], size_t arraySize);
 		/**
-		 * @brief Function that must be used to parse the information generated from this class to the interface.
-		 * @details The data must be on chronological order. So 0 is first out.
-		 * 
-		 * @param data Array this must be send to the interface handling FlowSerial. 0 is first out.
-		 * @param arraySize Definition for size of the array.
+		 * @brief      This function will be called by member functions in order
+		 *             to operate.
+		 * @details    The data must be on chronological order. So 0 is first
+		 *             out.
+		 *
+		 * @todo At least make sure data is send to the peer. Extra code that
+		 * would grantee that the data makes it to the other side is not
+		 * necessary but it would be nice.
+		 *
+		 * @param      data       Array this must be send to the interface
+		 *                        handling FlowSerial. 0 is first out.
+		 * @param      arraySize  size of date that is being held in the array
+		 *                        that needs to be send.
 		 */
-		virtual void sendToInterface(const uint8_t data[], size_t arraySize) = 0;
+		virtual void writeToInterface(const uint8_t data[], size_t arraySize) = 0;
 	private:
 		void returnData(const uint8_t data[], size_t arraySize);
 		void returnData(uint8_t data);
 		void sendFlowMessage(uint8_t startAddress, const uint8_t data[], size_t arraySize, Instruction instruction);
-		static constexpr uint inputBufferSize = 256;
-		uint8_t inputBufferAvailable = 0;
-		uint8_t inputBuffer[inputBufferSize];
-		//For update function
-		//Own counting checksum
-		uint16_t checksum;
-		//Checksum read from package
-		uint16_t checksumReceived;
-		//keeps track how many arguments were received
-		uint argumentBytesReceived;
-		//Remember what the start address was
-		uint startAddress;
-		//How many bytes needs reading or writing. Received from package
-		uint nBytes;
-		//Temporary store writing data into this buffer until the checksum is read and checked
-		uint8_t flowSerialBuffer[256];
-		mutex mutexInbox;
+		CircularBuffer<uint8_t, 256> inputBuffer;
+		// Temporary store argument data into this buffer until the checksum is
+		// read and checked
+		LinearBuffer<uint8_t, 256> argumentBuffer;
+		uint16_t checksum;         // These two will be compared at the and of an package.
+		uint16_t checksumReceived; // These two will be compared at the and of an package.
+		// keeps track how many arguments were received
 		
 		State flowSerialState = State::idle;
 		Instruction instruction;
-	};
-	/**
-	 * @brief      FlowSerial implementation build for USB devices
-	 * @details    It has handy connect function to connect to a Linux USB device
-	 *             via /dev/ *
-	 */
-	class UsbSocket : public BaseSocket{
-	public:
-		/**
-		 * @brief      Constructor for this class.
-		 *
-		 * @param      iflowRegister    Pointer to array that is being used to
-		 *                              store received data.
-		 * @param      iregisterLength  Length of array that was given.
-		 */
-		UsbSocket(uint8_t* iflowRegister, size_t iregisterLength);
-		/**
-		 * @brief      Destroys the object. Closing all open devices.
-		 */
-		~UsbSocket();
-		/**
-		 * @brief      Connects to a device. This is handy if someone wants to
-		 *             switch to another interface.
-		 *
-		 * @param[in]  filePath  The file path
-		 * @param[in]  baudRate  The baud rate
-		 */
-		void connectToDevice(const char filePath[], uint baudRate);
-		/**
-		 * @brief      Reads from peer address. This has a timeout functionality
-		 *             of 500 ms. It will try three time before throwing an
-		 *             exception
-		 *
-		 * @param[in]  startAddress  The start address where to begin to read
-		 *                           from other peer
-		 * @param      returnData    Array will be filled with requested data.
-		 * @param[in]  nBytes        Number of elements that would be like to read
-		 */
-		void read(uint8_t startAddress, uint8_t returnData[], size_t size);
-		/**
-		 * @brief      Closes the device.
-		 */
-		void closeDevice();
-		/**
-		 * @brief      Same as FlowSerial::UsbSocket::update(0);
-		 *
-		 * @return     true if a message is received.
-		 */
-		bool update();
-		/**
-		 * @brief      Checks input stream for available messages. Will block if
-		 *             nothing is received. It is advised to use a thread for
-		 *             this.
-		 *
-		 * @param[in]  timeoutMs  The timeout in milliseconds
-		 *
-		 * @return     True is message is received
-		 */
-		bool update(uint timeoutMs);
-		/**
-		 * @brief      Starts an update thread.
-		 */
-		void startUpdateThread();
-		/**
-		 * @brief      Stops an update thread if it's running.
-		 */
-		void stopUpdateThread();
-		/**
-		 * @brief      Determines if the device is open.
-		 *
-		 * @return     True if open, False otherwise.
-		 */
-		bool is_open();
-	private:
-		int fd = -1;
-		bool threadRunning = true;
-		void updateThread();
-		thread threadChild;
-		sem_t producer;
-		sem_t consumer;
-		virtual void sendToInterface(const uint8_t data[], size_t arraySize);
-	};
-
-	class ConnectionError: public runtime_error{
-	public:
-		ConnectionError(string ierrorMessage = "connection error."):
-			runtime_error(ierrorMessage){}
-	};
-	class CouldNotOpenError: public ConnectionError
-	{
-	public:
-		CouldNotOpenError():ConnectionError("could not open device."){}
-	};
-	class ReadError: public ConnectionError
-	{
-	public:
-		ReadError():ConnectionError("could not read from device."){}
-	};
-	class WriteError: public ConnectionError
-	{
-	public:
-		WriteError():ConnectionError("could not write to device."){}
-	};
-	class TimeoutError: public ConnectionError
-	{
-	public:
-		TimeoutError():ConnectionError("timeout reached waiting for reading of device."){}
 	};
 }
 #endif //_FLOWSERIAL_HPP_
