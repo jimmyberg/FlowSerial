@@ -41,8 +41,5 @@ To use this repository in another git repository
 git submodule add https://github.com/overlord1123/FlowSerial.git
 ```
 # Example
-
-```c++
-A example implementation will be made in the near future...
-
-```
+An example implementation of FlowSerial used for USB communication can be found here.
+https://github.com/overlord1123/FlowSerialArduinoUsb
